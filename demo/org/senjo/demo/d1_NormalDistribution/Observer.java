@@ -11,9 +11,10 @@ import static org.senjo.demo.d1_NormalDistribution.Starter.UNIT_COUNT;
 import org.senjo.annotation.Synchronized;
 import org.senjo.conveyor.Conveyor;
 
-/** Наблюдатель принимает данные от всех задач и строит по ним статистику, которую
- * периодически кратко пишет в out, а также по окончании работы всех задач проверяет
- * очереди конвейера, завершает его и пишет полную статистику в out.
+/** Наблюдатель запускается в отдельном конвейере, чтобы не испытывать перегрузку
+ * основного конвейера. Он принимает данные от всех задач и строит по ним статистику,
+ * которую периодически кратко пишет в out, а также по окончании работы всех задач
+ * проверяет очереди конвейера, завершает его и пишет полную статистику в out.
  * 
  * @author Denis Rezvyakov aka Dinya Feony Senjo
  * @version create 2019-10 */
@@ -57,6 +58,7 @@ class Observer extends org.senjo.conveyor.SoloTask<Unit> {
 	@Synchronized public static final void push(Unit unit) {
 		instance.handle(unit, $Signal); }
 
+//XXX Перетащить идею в Chibi в виде эксперимента, отсюда убрать
 //	private void go() {
 //		int code1 = Basket.semaphoreIn(this, Semafore);
 //		int code2 = semaphore.sync();

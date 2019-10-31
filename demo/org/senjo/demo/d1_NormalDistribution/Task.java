@@ -9,7 +9,8 @@ package org.senjo.demo.d1_NormalDistribution;
 
 import org.senjo.conveyor.*;
 
-/**
+/** Заготовка задачи привязанная к единому спрятанному многопоточному конвейеру.
+ * Конвейер создаётся автоматически (статически).
  * 
  * @author Denis Rezvyakov aka Dinya Feony Senjo
  * @version create 2019-10 */

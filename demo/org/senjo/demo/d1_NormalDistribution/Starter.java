@@ -50,7 +50,7 @@ public class Starter extends Task {
 		LogConsole.initDefault(Hint);
 		new Starter(); }
 
-	private Starter() { log(); start(); }
+	private Starter() { start(); }
 
 	@Override protected int work(int stage) { switch (stage) {
 	case $Start:
@@ -63,7 +63,7 @@ public class Starter extends Task {
 		tick = System.nanoTime() - tick;
 		log().infoEx("Все ").form(index, "[@] задач[а|и|]").add(" запущены за ")
 				.tick(tick).end();
-		log().infoEx("Время выполнения задач: ")
+		log().infoEx("Разброс времени выполнения одной задачи: ")
 				.add(Unit.WAIT_MIN * LOOP_COUNT / 1000).add('÷')
 				.add(Unit.WAIT_MAX * LOOP_COUNT / 1000).add(" секунд").end();
 		return $Finish$;

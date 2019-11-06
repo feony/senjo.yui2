@@ -255,8 +255,8 @@ final class TimeKeeper extends Unit {
 			this.nextWakeup = resultWakeup;
 			// Если пачка полная, текущая линия принадлежит Хранителю и следующий в очереди
 			// таймер тоже наступил, то потом повторить алгоритм пробуждения пачки таймеров
-			if ( count == ApplyPackSize && currentLine != this.activeLine
-					&& 0 != resultWakeup && resultWakeup <= now ) resultWakeup = -1;
+			if ( count == ApplyPackSize && currentLine == this.activeLine
+					&& 0 < resultWakeup&&resultWakeup <= now ) resultWakeup = -1;
 			// Собрали пачку наступивших таймеров, теперь освобождаем синхронизацию и будим их
 			unsync(); synced = false;
 
@@ -264,9 +264,7 @@ final class TimeKeeper extends Unit {
 			for (int index = 0; index != count; ++index) {
 				Unit unit = pack[index].wakeup();
 				if (unit != null) back[backCount++] = unit; }
-
-//FIXME Добавить конвейеру умение принимать массив задач для возврата в очередь!
-			for (int index = 0; index != backCount; ++index) conveyor.push(back[index]);
+			if (backCount != 0) conveyor.push(back, backCount);
 
 			// Вернуть результат или включить блокировку и повторить алгоритм пробуждения
 			if (resultWakeup >= 0) {

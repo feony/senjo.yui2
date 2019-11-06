@@ -37,9 +37,11 @@ import org.senjo.support.LogConsole;
 @SuppressWarnings("unused")
 public class Starter extends Task {
 	public static final int UNIT_COUNT = 1_000_000;
-	public static final int LOOP_COUNT =         4;
+	public static final int LOOP_COUNT =        16;
 
-	static ConveyorView view = new ConveyorView(Task.conveyor);
+	public static final long StartEpoch = System.nanoTime();
+
+	static ConveyorView view = new ConveyorView(Task.conveyor, 100);
 
 	/* Для теста просто создаём задачу Starter. Она сама дёрнет наш вариант базовой задачи,
 	 * а та создаст конвейер и привяжет к нему Starter. Далее конструктор задачи запускает

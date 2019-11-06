@@ -50,17 +50,20 @@ final class TimeKeeper extends Unit {
 		/* Внутри данного метода, даже без блокировки, в парковке, может находиться строго
 		 * только одна линия. Поэтому синхронизация по Keeper. */
 		log.debug("keep: enter");
-		long wakeup = nextWakeup;
 
 		// Пока текущая линия активна: спим до таймера и пробуждаем наступившие таймеры
 		while (line == activeLine) {
 			// Припарковать линию и спать до пробуждения ближайшего назначенного таймера
-			if (log.trace()) log.trace(
+			long now, wakeup = nextWakeup;
+			if (log.isTrace()) log.trace(
 					wakeup > 0 ? "keep: park to " + textEpoch(wakeup) : "park infinite" );
 			push(Parked); unsync(); line.park(wakeup); sync();
 			log.debug("keep: unpark");
 			// Если Parked не сняли раньше, то это штатное пробуждение, обработать таймеры
-			wakeup = take(Parked) ?in_apply_lot(System.currentTimeMillis(), line) :nextWakeup;
+			if (take(Parked)) {
+				now = System.currentTimeMillis(); wakeup = nextWakeup;
+				if (0 < wakeup&&wakeup <= now) { in_applyAndUnsync(now); sync(); }
+			}
 		}
 
 		Unit nextPlan = line.plan; line.plan = null;
@@ -69,10 +72,16 @@ final class TimeKeeper extends Unit {
 	} catch (Throwable th) { log.fault("Critical fail of Time Keeper. ", th); return this;
 	} finally { unsync(); } }
 
+	@Override protected int error(Exception error, boolean nested) {
+		if (existSync(Released)) return $Default$;
+		log.fault("Critical fail in the TimeKeeper: ", error);
+		return $Default$;
+	}
+
 	/** Назначить исполнительную линию хранителю времени и обязать его наблюдать
 	 * за таймерами самостоятельно. */
 	@Synchronized @Lock(outer=AConveyor.class) void invoke(Line line) { try { sync();
-		log.debug("keep: Assign " + hashName(line) + " to Time Keeper");
+		if (log.isDebug()) log.debug("keep: Assign " + hashName(line) + " to Time Keeper");
 		if (this.activeLine == null) this.activeLine = line;
 		else throw Illegal("Keeper assign failed, it already assigned");
 	} finally { unsync(); } }
@@ -81,7 +90,8 @@ final class TimeKeeper extends Unit {
 	 * наблюдать за таймерами самостоятельно. */
 	@Synchronized @Lock(outer=AConveyor.class) long revoke(Unit plan) { try { sync();
 		Line line = this.activeLine;
-		log.debug("unkeep: Release " + hashName(activeLine) + " from Time Keeper");
+		if (log.isDebug())
+			log.debug("unkeep: Release " + hashName(activeLine) + " from Time Keeper");
 		line.plan = plan;
 		this.activeLine = null;
 		if (take(Parked)) unsafe.unpark(line);
@@ -105,7 +115,7 @@ final class TimeKeeper extends Unit {
 	 * <p/>Важно! Данный метод может вызывать синхронные методы конвейера, поэтому
 	 * при вызове данного метода конвейер должен быть разблокирован. */
 	@Synchronized(AConveyor.class) void push(Waiting timer) { try { sync();
-		log.debug("keeper: Add timer at " + textEpoch(timer.instant));
+		if (log.isDebug()) log.debug("keeper: Add timer at " + textEpoch(timer.instant));
 		queue.offer(timer); checkWakeup();
 	} finally { unsync(); } }
 
@@ -113,7 +123,7 @@ final class TimeKeeper extends Unit {
 	 * <p/>Важно! Данный метод может вызывать синхронные методы конвейера, поэтому
 	 * при вызове данного метода конвейер должен быть разблокирован. */
 	@Synchronized(AConveyor.class) boolean take(Waiting timer) { try { sync();
-		log.debug("keeper: Remove timer at " + textEpoch(timer.instant));
+		if (log.isDebug()) log.debug("keeper: Remove timer at " + textEpoch(timer.instant));
 		if (queue.remove(timer)) { checkWakeup(); return true; }
 		else return false;
 	} finally { unsync(); } }
@@ -141,7 +151,7 @@ final class TimeKeeper extends Unit {
 			 * ожидания. */
 			if (oldWakeup != 0 && (newWakeup == 0 || oldWakeup < newWakeup)) return;
 			if (take(Parked)) {
-				if (log.trace()) log.traceEx("rekeep: Unpark signal to ")
+				if (log.isTrace()) log.traceEx("rekeep: Unpark signal to ")
 						.hashName(line).end();
 				unsafe.unpark(line); }
 		} else {
@@ -151,8 +161,8 @@ final class TimeKeeper extends Unit {
 			try { unsync(); line = conveyor.switchTimer(newWakeup); } finally { sync(); }
 			// Если у конвейера нашлась свободная линия, то сразу назначить её и разбудить
 			if (line != null) {
-				if (log.debug()) log.debugEx("rekeep: Assign sleep ").hashName(line)
-						.add(" to Time Keeper");
+				if (log.isDebug()) log.debugEx("rekeep: Assign sleep ").hashName(line)
+						.end(" to Time Keeper");
 				this.activeLine = line; line.unpark(this); }
 		}
 	}
@@ -164,63 +174,109 @@ final class TimeKeeper extends Unit {
 	 * @param now — текущее системное время;
 	 * @return время срабатывания следующего таймера; в результате ошибки ядра может
 	 *         отличаться от {@link #nextWakeup} для небольшой задержки после сбоя. */
-	@Synchronized(AConveyor.class) @Stable long apply(long now) { try { sync();
+	@Synchronized(AConveyor.class) @Stable long apply(long now) {
+		sync();
 		log.debug("conv: Trigger the few timers");
 		long wakeup = this.nextWakeup;
-		int count = 8;
-		while (0 < wakeup&&wakeup <= now) {
-			wakeup = in_apply_one(now);
-			if (--count == 0) break; }
-		if (log.debug() && count == 8) log.debug("conv: Apply timer call is useless");
-		return wakeup;
-	} finally { unsync(); } }
-
-	/** Метод извлечения из очереди множества наступивших таймеров и возврат их в задачи
-	 * на обработку. Вызывается в момент когда предполагается, что хотя бы один ближайший
-	 * таймер уже наступил. Метод только для хранителя, следит за активной линией и как
-	 * только она поменяется, сразу прерывает работу и возвращает управление.<p/>
-	 * @see TimeKeeper#in_apply_one(long)
-	 * @param now — текущее системное время;
-	 * @param currentLine — текущая линия, будет сравниваться с {@link #activeLine};
-	 * @return время срабатывания следующего таймера; в результате ошибки ядра может
-	 *         отличаться от {@link #nextWakeup} для небольшой задержки после сбоя. */
-	@Looper private final long in_apply_lot(long now, @NotNull Line currentLine) {
-		log.debug("keep: Trigger the lot timers");
-		long wakeup = this.nextWakeup;
-		while (0 < wakeup&&wakeup <= now) {
-			wakeup = in_apply_one(now);
-			if (currentLine != activeLine) break; }
-		return wakeup;
+		if (0 < wakeup&&wakeup <= now) return in_applyAndUnsync(now);
+		else { unsync(); return wakeup; }
 	}
 
-/*XXX Слишком много блокировок при множестве таймеров. Попробовать объединить
- * уже наступившие таймеры: изъять из очереди группу таймеров в массив, снять блокировку,
- * обработать группу таймеров, снова вернуться в блокировку Хранителя. */
-
-	/** Метод извлечения из очереди гарантировано наступившего одного таймера и возврат его
-	 * в задачу на обработку. Вызывается в тот момент когда известно, что этот ближайший
-	 * таймер уже наступил. Может вызываться и конвейером напрямую, но перед этим конвейер
-	 * обязан снять свою блокировку.<p/>
-	 * Особый метод-перевёртыш, вызывается в режиме синхронизации, возвращает управление
-	 * и результат строго в режиме синхронизации, чтобы в момент возврата никто не мог
-	 * этот результат поменять, однако при этом внутри себя может снимать синхронизацию.
+	/** Метод извлечения из очереди предположительно наступившего одного таймера и возврат
+	 * его в задачу на обработку. Если время таймера ещё не наступило, то метод сразу вернёт
+	 * управление. Если время пробуждения наступило более, чем для одного таймера, то будет
+	 * извлечена и обработана разом пачка таймеров. Метод нужно вызывать в тот момент, когда
+	 * есть предположение, что ближайший таймер уже наступил. Может вызываться и конвейером
+	 * напрямую, но перед этим конвейер обязан снять свою блокировку: таймер будет возвращать
+	 * задачу в конвейер, а значит блокировать его.<p/>
+	 * Особый метод-перевёртыш, вызывается в режиме синхронизации, но возвращает управление
+	 * и результат строго со снятой синхронизацией.
 	 * @param now — текущее системное время;
 	 * @return время срабатывания следующего таймера. */
-	@Looper private final long in_apply_one(long now) {
-		Waiting pollTimer = queue.poll(), peekTimer = queue.peek();
-		nextWakeup = peekTimer != null ? peekTimer.instant : 0;
+	@VandalSync private final long in_applyAndUnsync(long now) {
+		boolean synced = true;
+		try {
+			long wakeup;
+			// Извлекаем предположительно наступивший таймер, проверяем точно его наступление
+			Waiting pollTimer = queue.poll();
+			wakeup = pollTimer != null ? pollTimer.instant : 0;
+			if (wakeup == 0 || now < wakeup) {
+				queue.offer(pollTimer); this.nextWakeup = wakeup;
+				unsync(); return wakeup; }
 
-		try { unsync();
+			// Подглыдываем следующий таймер, если и он наступил, вызываем пробуждение группой
+			Waiting peekTimer = queue.peek();
+			wakeup = peekTimer != null ? peekTimer.instant : 0;
+			if (0 < wakeup&&wakeup <= now) {
+				synced = false; return in_applyLotAndUnsync(now, pollTimer); }
+
+			this.nextWakeup = wakeup;
+			unsync(); synced = false;
+
 			Unit unit = pollTimer.wakeup();
 			if (unit != null) conveyor.push(unit);
-		} catch (Exception ex) { // Возможно, это лишняя проверка, после отладки убрать
-			// Да-да, я читаю бит без синхронизации, но этот бит тут уже давно стоит
-			if (exist(Released)) return 0;
-			log.fault("Critical fail of wakeup the timer: ", ex);
-			return now + 3_000;
-		} finally { sync(); }
-		return nextWakeup;
+			return wakeup;
+		} catch (Throwable th) { if (synced) unsync(); throw th; }
 	}
+
+	private static final int ApplyPackSize = 16;
+
+	/** Разбудить небольшую пачку таймеров разом (не тратя блокировку на каждого).
+	 * Метод будет бесконечно пробуждать таймеры, пока текущий поток совпадает с выделенной
+	 * хранителю линией. Если конвейер отобрал линию или вызвал пробуждение лично, то метод
+	 * разбудит пачку таймеров и безусловно вернёт управление.
+	 * @param now — текущее системное время;
+	 * @param timer — уже извлечённый из очереди таймер готовый к пробуждению;
+	 * @param currentLine — текущая линия, будет сравниваться с {@link #activeLine};
+	 * @return время срабатывания следующего таймера. */
+	@VandalSync private final long in_applyLotAndUnsync(long now, @NotNull Waiting timer) {
+	boolean synced = true;
+	try {
+		log.debug("keep: Trigger the lot timers");
+		final Line currentLine = Line.current();
+		final Waiting pack[] = new Waiting[ApplyPackSize];
+		final Unit    back[] = new Unit   [ApplyPackSize];
+		pack[0] = timer;
+		int count = 1;
+
+		do {
+			/** Результат метода после пробуждения пачки или -1, если нужно будет повторить */
+			long resultWakeup;
+			do {
+				pack[count] = timer = queue.poll(); // Извлекаем следующий элемент
+				// Если таймеры в очереди кончились, то прервать набор таймеров
+				if (timer == null) { resultWakeup = 0; break; }
+				// Если попался ещё не наступивший таймер, то вернуть его и прервать набор
+				if (now < timer.instant) {
+					resultWakeup = timer.instant; queue.offer(timer); break; }
+				if (++count == ApplyPackSize) { timer = queue.peek();
+					resultWakeup = timer != null ? timer.instant : 0; break; }
+			} while (true);
+			this.nextWakeup = resultWakeup;
+			// Если пачка полная, текущая линия принадлежит Хранителю и следующий в очереди
+			// таймер тоже наступил, то потом повторить алгоритм пробуждения пачки таймеров
+			if ( count == ApplyPackSize && currentLine != this.activeLine
+					&& 0 != resultWakeup && resultWakeup <= now ) resultWakeup = -1;
+			// Собрали пачку наступивших таймеров, теперь освобождаем синхронизацию и будим их
+			unsync(); synced = false;
+
+			int backCount = 0;
+			for (int index = 0; index != count; ++index) {
+				Unit unit = pack[index].wakeup();
+				if (unit != null) back[backCount++] = unit; }
+
+//FIXME Добавить конвейеру умение принимать массив задач для возврата в очередь!
+			for (int index = 0; index != backCount; ++index) conveyor.push(back[index]);
+
+			// Вернуть результат или включить блокировку и повторить алгоритм пробуждения
+			if (resultWakeup >= 0) {
+				if (log.isDebug() && count == ApplyPackSize)
+					log.debug("conv: Apply timer call is useless");
+				return resultWakeup; }
+			count = 0;
+			sync(); synced = true;
+		} while (true);
+	} catch (Throwable th) { if (synced) unsync(); throw th; } }
 
 
 

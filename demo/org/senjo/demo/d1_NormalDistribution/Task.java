@@ -1,4 +1,4 @@
-/* Copyright 2019, Senjo Org. Denis Rezvyakov aka Dinya Feony Senjo.
+п»ї/* Copyright 2019, Senjo Org. Denis Rezvyakov aka Dinya Feony Senjo.
  * 
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -9,8 +9,8 @@ package org.senjo.demo.d1_NormalDistribution;
 
 import org.senjo.conveyor.*;
 
-/** Заготовка задачи привязанная к единому спрятанному многопоточному конвейеру.
- * Конвейер создаётся автоматически (статически).
+/** Р—Р°РіРѕС‚РѕРІРєР° Р·Р°РґР°С‡Рё РїСЂРёРІСЏР·Р°РЅРЅР°СЏ Рє РµРґРёРЅРѕРјСѓ СЃРїСЂСЏС‚Р°РЅРЅРѕРјСѓ РјРЅРѕРіРѕРїРѕС‚РѕС‡РЅРѕРјСѓ РєРѕРЅРІРµР№РµСЂСѓ.
+ * РљРѕРЅРІРµР№РµСЂ СЃРѕР·РґР°С‘С‚СЃСЏ Р°РІС‚РѕРјР°С‚РёС‡РµСЃРєРё (СЃС‚Р°С‚РёС‡РµСЃРєРё).
  * 
  * @author Denis Rezvyakov aka Dinya Feony Senjo
  * @version create 2019-10 */

@@ -20,9 +20,10 @@ public class ConveyorView extends SoloTask {
 
 	public ConveyorView(MultiConveyor target) { this(target, 500, 3*Minute); }
 	public ConveyorView(MultiConveyor target, int rangeStep) {
-		this(target, rangeStep, 2*Minute); }
+		this(target, rangeStep, 3*Minute); }
 	public ConveyorView(MultiConveyor target, int rangeStep, long rangeCapacity) {
 		super("Conveyor debugger");
+		super.priority(1);
 		this.target = target;
 		this.range  = rangeStep;
 		int size = (int)(rangeCapacity / rangeStep);

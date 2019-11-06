@@ -100,7 +100,7 @@ public abstract class AConveyor extends ABasketSync {
 	 * заняты, то задача будет добавлена в очередь и выполнена позже.
 	 * @param plan — абстрактная задача, которую конвейер должен выполнить. */
 	@Synchronized void push(Unit plan) { try { sync();
-		if (log.debug()) log.debugEx("Push ").hashName(plan).end();
+		if (log.isDebug()) log.debugEx("Push ").hashName(plan).end();
 		if (exist(Load)) queue.add(plan); else wakeup(plan);
 	} finally { unsync(); } }
 

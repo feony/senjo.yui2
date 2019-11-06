@@ -55,7 +55,7 @@ final class TimeKeeper extends Unit {
 		// Пока текущая линия активна: спим до таймера и пробуждаем наступившие таймеры
 		while (line == activeLine) {
 			// Припарковать линию и спать до пробуждения ближайшего назначенного таймера
-			if (log.trace()) log.trace(
+			if (log.isTrace()) log.trace(
 					wakeup > 0 ? "keep: park to " + textEpoch(wakeup) : "park infinite" );
 			push(Parked); unsync(); line.park(wakeup); sync();
 			log.debug("keep: unpark");
@@ -72,7 +72,7 @@ final class TimeKeeper extends Unit {
 	/** Назначить исполнительную линию хранителю времени и обязать его наблюдать
 	 * за таймерами самостоятельно. */
 	@Synchronized @Lock(outer=AConveyor.class) void invoke(Line line) { try { sync();
-		log.debug("keep: Assign " + hashName(line) + " to Time Keeper");
+		if (log.isDebug()) log.debug("keep: Assign " + hashName(line) + " to Time Keeper");
 		if (this.activeLine == null) this.activeLine = line;
 		else throw Illegal("Keeper assign failed, it already assigned");
 	} finally { unsync(); } }
@@ -81,7 +81,8 @@ final class TimeKeeper extends Unit {
 	 * наблюдать за таймерами самостоятельно. */
 	@Synchronized @Lock(outer=AConveyor.class) long revoke(Unit plan) { try { sync();
 		Line line = this.activeLine;
-		log.debug("unkeep: Release " + hashName(activeLine) + " from Time Keeper");
+		if (log.isDebug())
+			log.debug("unkeep: Release " + hashName(activeLine) + " from Time Keeper");
 		line.plan = plan;
 		this.activeLine = null;
 		if (take(Parked)) unsafe.unpark(line);
@@ -105,7 +106,7 @@ final class TimeKeeper extends Unit {
 	 * <p/>Важно! Данный метод может вызывать синхронные методы конвейера, поэтому
 	 * при вызове данного метода конвейер должен быть разблокирован. */
 	@Synchronized(AConveyor.class) void push(Waiting timer) { try { sync();
-		log.debug("keeper: Add timer at " + textEpoch(timer.instant));
+		if (log.isDebug()) log.debug("keeper: Add timer at " + textEpoch(timer.instant));
 		queue.offer(timer); checkWakeup();
 	} finally { unsync(); } }
 
@@ -113,7 +114,7 @@ final class TimeKeeper extends Unit {
 	 * <p/>Важно! Данный метод может вызывать синхронные методы конвейера, поэтому
 	 * при вызове данного метода конвейер должен быть разблокирован. */
 	@Synchronized(AConveyor.class) boolean take(Waiting timer) { try { sync();
-		log.debug("keeper: Remove timer at " + textEpoch(timer.instant));
+		if (log.isDebug()) log.debug("keeper: Remove timer at " + textEpoch(timer.instant));
 		if (queue.remove(timer)) { checkWakeup(); return true; }
 		else return false;
 	} finally { unsync(); } }
@@ -141,7 +142,7 @@ final class TimeKeeper extends Unit {
 			 * ожидания. */
 			if (oldWakeup != 0 && (newWakeup == 0 || oldWakeup < newWakeup)) return;
 			if (take(Parked)) {
-				if (log.trace()) log.traceEx("rekeep: Unpark signal to ")
+				if (log.isTrace()) log.traceEx("rekeep: Unpark signal to ")
 						.hashName(line).end();
 				unsafe.unpark(line); }
 		} else {
@@ -151,8 +152,8 @@ final class TimeKeeper extends Unit {
 			try { unsync(); line = conveyor.switchTimer(newWakeup); } finally { sync(); }
 			// Если у конвейера нашлась свободная линия, то сразу назначить её и разбудить
 			if (line != null) {
-				if (log.debug()) log.debugEx("rekeep: Assign sleep ").hashName(line)
-						.add(" to Time Keeper");
+				if (log.isDebug()) log.debugEx("rekeep: Assign sleep ").hashName(line)
+						.end(" to Time Keeper");
 				this.activeLine = line; line.unpark(this); }
 		}
 	}
@@ -171,7 +172,7 @@ final class TimeKeeper extends Unit {
 		while (0 < wakeup&&wakeup <= now) {
 			wakeup = in_apply_one(now);
 			if (--count == 0) break; }
-		if (log.debug() && count == 8) log.debug("conv: Apply timer call is useless");
+		if (log.isDebug() && count == 8) log.debug("conv: Apply timer call is useless");
 		return wakeup;
 	} finally { unsync(); } }
 

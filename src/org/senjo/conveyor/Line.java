@@ -65,9 +65,9 @@ class Line extends Thread {
 
 			/* Задачи пока закончились, линия уже помечена конвейером как спящая,
 			 * переход в спящий режим */
-			if (log.debug()) log.debug("park");
+			if (log.isDebug()) log.debug("park");
 			park(0);
-			if (log.debug()) log.debug("unpark");
+			if (log.isDebug()) log.debug("unpark");
 		} catch (Kill      kill ) { core(); // close();
 			log.info("Conveyor line released"); idle(); return;
 		} catch (Throwable error) { core();

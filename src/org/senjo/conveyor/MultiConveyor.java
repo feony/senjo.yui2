@@ -53,7 +53,7 @@ public final class MultiConveyor extends AConveyor {
 			else                           { line.unpark (plan); traceText = "Idle "  ; }
 		} else { // Линия ещё не существует, создать её с задачей и запомнить
 			line = lines[wakeIndex] = createLine(plan, priority); traceText = "New "; }
-		if (log.debug()) log.debugEx("conveyor: ").add(traceText)
+		if (log.isDebug()) log.debugEx("conveyor: ").add(traceText)
 				.hashName(line).add(" is assign to ").hashName(plan);
 	}
 

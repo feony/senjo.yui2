@@ -64,7 +64,7 @@ public class ConveyorView extends SoloTask {
 	}
 
 	private void print(String title, Object array) {
-		StringBuilder out = new StringBuilder(align(' '+title+' ', 80, false, .3f, '='));
+		StringBuilder out = new StringBuilder(align(' '+title+' ', WIDTH, false, .3f, '='));
 		out.append("\n        ");
 		for (int seek = 0; seek != 10; ++seek) {
 			out.append(' '); seek(out, seek*range); }
@@ -106,12 +106,26 @@ public class ConveyorView extends SoloTask {
 		print("Очередь задач"   , queueSize  );
 		print("Очередь таймеров", timerSize  );
 //		print("Размер конвейера", heapSize   );
+		System.out.println(align(WIDTH, '='));
+	}
+
+	public static void legend(boolean onTop) {
+		if (onTop) System.out.println(align(WIDTH, '='));
+		System.out.println(
+		  "Статистика собирается во время работы конвейера и отображается ниже как итог.\n"
+		+ "Она отображает состояние элементов конвейера в разные моменты времени:\n"
+		+ "* занятые линии — сколько конвейерных линий не спят, а обрабатывают задачи;\n"
+		+ "* очередь задач — сколько задач ожидают в очереди из-за занятости линий;\n"
+		+ "* очередь таймеров — сколько таймеров от задач ожидают указанного им времени." );
+		if (!onTop) System.out.println(align(WIDTH, '='));
 	}
 
 	public boolean finished () { return target.is(Finished); }
 	public int     queueSize() { return target.queueSize (); }
 	public int     timerSize() { return target.timerSize (); }
 //	public int     heapSize () { return sizeOf(target).asInt(); }
+
+	private static final int WIDTH = 80;
 }
 
 

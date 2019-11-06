@@ -141,7 +141,14 @@ public class Entry extends ABasketSync {
 		Waiting(int kind, Unit owner, int stage) {
 			super(kind, stage); this.owner = owner; }
 
-		void wakeup() { owner.appendEntryAndQueue(this); }
+		/** Переопределяемый метод пробуждения ждущего вхождения. Вызывается Хранителем
+		 * Времени когда наступил заказанный ожидаемый момент времени.
+		 * @return Unit — если не null, то Хранитель Времени добавит эту задачу в очередь
+		 *         конвейера. Хранитель Времени умеет будить задачи группами, потому может
+		 *         собрать несколько задач и передать их в конвейер тоже группой за одну
+		 *         блокировку. */
+		@Nullable Unit wakeup() {
+			return owner.appendEntryAndCheckQueue(this) ? owner : null; }
 
 		@Override public int compareTo(Waiting that) {
 			long result = this.instant - that.instant;
@@ -307,7 +314,7 @@ public class Entry extends ABasketSync {
 		 * сброшена. */
 		@Synchronized public void loop() { try { sync();
 			if (!turn(μMode, ModeLoop)) return; // Если loop и так включён, ничего не делать
-			if (push(Queued)) owner.appendEntryAndQueue(this); // Добавить в очередь задачи
+			if (push(Queued)) owner.appendEntryAndPushQueue(this); // Добавить в очередь задачи
 		} finally { unsync(); } }
 
 		/** Усыпить данное вхождение на указанное число миллисекунд. После спячки вхождение
@@ -332,7 +339,7 @@ public class Entry extends ABasketSync {
 		 * Когда вхождение в режиме спячки: если время наступило, то нужно активировать
 		 * циклический режим, иначе поправить время ожидания и вернуть в таймер. Когда
 		 * спячка отключена, то просто выключить таймер. */
-		@Synchronized @Override void wakeup() { try { sync();
+		@Synchronized @Override Unit wakeup() { try { sync();
 			if (every(μMode, ModeSleep)) { // Режим по-прежнему спячки и нужно разбудиться
 				if (instant < wakeup) { // Ещё рано, снова добавиться в таймер
 					instant = wakeup;
@@ -340,9 +347,10 @@ public class Entry extends ABasketSync {
 				} else { // Время наступило, переключиться в Loop и добавиться в задачу
 					wakeup = instant = 0;
 					turn(μMode, ModeLoop);
-					if (push(Queued)) owner.appendEntryAndQueue(this);
+					if (push(Queued) && owner.appendEntryAndCheckQueue(this)) return owner;
 				}
 			} else wakeup = instant = 0; // Спячки не было, забыть и ничего не делать
+			return null;
 		} finally { unsync(); } }
 
 		@Naive private void appendTimer() {
@@ -434,7 +442,8 @@ public class Entry extends ABasketSync {
 
 		Crash(Unit owner) { super(KindCrash, owner, -1); }
 
-		@Override void wakeup() { owner.importEntryAndQueue(this, Unit.Frozen); }
+		@Override @Nullable Unit wakeup() {
+			return owner.importEntryAndQueue(this, Unit.Frozen); }
 
 		@Override int inwork(Line line) {
 			owner.exportEntry();
@@ -718,7 +727,7 @@ public class Entry extends ABasketSync {
 		@Naive private final void _wakeup() {
 			boolean mode;
 			if (mode = state(Queued, Enabled)) {
-				push(Queued); owner.appendEntryAndQueue(this); }
+				push(Queued); owner.appendEntryAndPushQueue(this); }
 			owner.conveyor.log.trace(
 					"Storage#wakeup: " + (mode ? "into queue" : "working") ); }
 

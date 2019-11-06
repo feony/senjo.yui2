@@ -10,6 +10,7 @@ package org.senjo.demo.d1_NormalDistribution;
 import static org.senjo.demo.d1_NormalDistribution.Starter.UNIT_COUNT;
 import org.senjo.annotation.Synchronized;
 import org.senjo.conveyor.Conveyor;
+import org.senjo.conveyor.ConveyorView;
 
 /** Наблюдатель запускается в отдельном конвейере, чтобы не испытывать перегрузку
  * основного конвейера. Он принимает данные от всех задач и строит по ним статистику,
@@ -38,7 +39,7 @@ class Observer extends org.senjo.conveyor.SoloTask<Unit> {
 		int count = finishedUnitCount;
 		if (count == 0) return $Default$;
 		// Вывести сообщение с количеством завершённых задач в журнал
-		log().infoEx("Статус: ").form(count, "завершен[а|о] [@] задач[а|и|]").end('.');
+		log().infoEx("Вещание: ").form(count, "завершен[а|о] [@] задач[а|и|]").end('.');
 		return count != UNIT_COUNT ? $Default$ : $Cancel$; }
 
 	case $Overview:
@@ -48,8 +49,9 @@ class Observer extends org.senjo.conveyor.SoloTask<Unit> {
 		return $Default$;
 
 	case $Closing:
-		Starter.view.print();
 		log().info("Тест окончен! Команда завершения работы конвейера...");
+		ConveyorView.legend(true);
+		Starter.view.print();
 		Conveyor.shutdownAll();
 		return $Finish$;
 

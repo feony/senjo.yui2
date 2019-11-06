@@ -210,7 +210,9 @@ final class TimeKeeper extends Unit {
 		Waiting pollTimer = queue.poll(), peekTimer = queue.peek();
 		nextWakeup = peekTimer != null ? peekTimer.instant : 0;
 
-		try { unsync(); pollTimer.wakeup();
+		try { unsync();
+			Unit unit = pollTimer.wakeup();
+			if (unit != null) conveyor.push(unit);
 		} catch (Exception ex) { // Возможно, это лишняя проверка, после отладки убрать
 			// Да-да, я читаю бит без синхронизации, но этот бит тут уже давно стоит
 			if (exist(Released)) return 0;

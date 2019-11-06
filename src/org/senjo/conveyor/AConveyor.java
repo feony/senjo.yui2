@@ -44,7 +44,7 @@ public abstract class AConveyor extends ABasketSync {
 
 	String kindEx() {
 		return (this  instanceof MultiConveyor ? "Multi" : "")
-		     + (queue instanceof PoorQueue     ? "Cycle «" : "Conveyor «"); }
+		     + (queue instanceof PoorQueue     ? "SoloTask «" : "Conveyor «"); }
 
 
 

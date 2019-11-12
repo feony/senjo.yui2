@@ -32,7 +32,6 @@ final class TimeKeeper extends Unit {
 
 	/** Очередь таймеров, которые ожидают времени своей активации. Очередь поддерживается
 	 * сортированной по времени срабатывания. */
-//TODO Переписать эту позорную реализацию PriorityQueue
 	private final PriorityQueue<Waiting> queue = new PriorityQueue<>(Waiting.comparator);
 
 	final Log log;
@@ -114,18 +113,27 @@ final class TimeKeeper extends Unit {
 	 * в задачу для обработки.
 	 * <p/>Важно! Данный метод может вызывать синхронные методы конвейера, поэтому
 	 * при вызове данного метода конвейер должен быть разблокирован. */
-	@Synchronized(AConveyor.class) void push(Waiting timer) { try { sync();
-		if (log.isDebug()) log.debug("keeper: Add timer at " + textEpoch(timer.instant));
-		queue.offer(timer); checkWakeup();
+	@Synchronized(AConveyor.class) void push(@NotNull Waiting timer) { try { sync();
+		long newWakeup = timer.instant;
+		if (log.isDebug()) log.debug("keeper: Add timer at " + textEpoch(newWakeup));
+		queue.offer(timer);
+		long oldWakeup = this.nextWakeup;
+		// Если времени срабатывания не было или оно уменьшилось, то переключить пробуждение
+		if (oldWakeup == 0 || newWakeup < oldWakeup) changeWakeup(newWakeup);
 	} finally { unsync(); } }
 
-	/**
+	/** Досрочно извлечь указанный таймер из очереди ожидания.
 	 * <p/>Важно! Данный метод может вызывать синхронные методы конвейера, поэтому
 	 * при вызове данного метода конвейер должен быть разблокирован. */
-	@Synchronized(AConveyor.class) boolean take(Waiting timer) { try { sync();
-		if (log.isDebug()) log.debug("keeper: Remove timer at " + textEpoch(timer.instant));
-		if (queue.remove(timer)) { checkWakeup(); return true; }
-		else return false;
+	@Synchronized(AConveyor.class) boolean take(@NotNull Waiting timer) { try { sync();
+		long delWakeup = timer.instant;
+		if (log.isDebug()) log.debug("keeper: Remove timer at " + textEpoch(delWakeup));
+		if (queue.remove(timer)) {
+			if (delWakeup == nextWakeup) { // Если удалённое время совпало с ближайшим
+				Waiting peek = queue.peek(); // Получить новое ближайшее и переключиться на него
+				changeWakeup(peek != null ? peek.instant : 0); }
+			return true;
+		} else return false;
 	} finally { unsync(); } }
 
 
@@ -134,14 +142,13 @@ final class TimeKeeper extends Unit {
 	@Synchronized long nextWakeup() {
 		try { sync(); return nextWakeup; } finally { unsync(); } }
 
-	/** Метод контроля после изменения очереди таймеров. Проверяет момент времени
-	 * срабатывания ближайшего таймера. Если он изменился, то учитывает это. Разрешается
-	 * не применять никаких действий, если время срабатывания не уменьшилось, а увеличилось,
-	 * т.е. просто будет холостое срабатывание хранителя времени. */
-	@Looper @Lock(inner=AConveyor.class) private final void checkWakeup() {
-		Waiting nextTimer = queue.peek();
-		long newWakeup = nextTimer != null ? nextTimer.instant : 0, oldWakeup = nextWakeup;
-		if (oldWakeup == newWakeup) return; // Время ближайшего таймера не изменилось
+	/** Метод смещения времени ближайшего таймера. Должен вызываться когда гарантировано
+	 * изменилось время ближайшего срабатывания, причём в поле {@link #nextWakeup} должно
+	 * оставаться старое время, а новое передаётся в аргументе {@code newWakeup}. Метод
+	 * позволяет себе не применять никаких действий, если время срабатывания не уменьшилось,
+	 * а увеличилось, т.е. просто будет холостое срабатывание хранителя времени. */
+	@Looper @Lock(inner=AConveyor.class) private final void changeWakeup(long newWakeup) {
+		long oldWakeup = nextWakeup;
 		nextWakeup = newWakeup;
 
 		Line line = this.activeLine;

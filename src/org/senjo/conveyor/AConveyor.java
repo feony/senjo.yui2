@@ -151,7 +151,7 @@ public abstract class AConveyor extends ABasketSync {
 
 	final void assertShutdown() {
 		if (empty(Finished)) father.unready();
-		else throw ConveyorException.FailedWakeupBecauseShutdown(); }
+		else throw ConveyorException.FailedWakeupBecauseShutdowned(); }
 
 
 

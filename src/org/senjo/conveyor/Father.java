@@ -131,8 +131,7 @@ final class Father extends ABasketSync {
 	 * @throws IllegalStateException — конвейеру нельзя отменить состояние готовности. */
 	void unready() { try { sync();
 		if (awaiting < 0) throw Illegal("Unexpected unready signal of a conveyor shutdown");
-		if (awaiting == 0) throw Illegal( "Unready signal rejected"
-				+ " because the conveyor shutdown is already in the destroy phase" );
+		if (awaiting == 0) throw ConveyorException.FailedWakeupBecauseShutdowning();
 		++awaiting;
 	} finally { unsync(); } }
 

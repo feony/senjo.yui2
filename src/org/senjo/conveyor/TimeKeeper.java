@@ -68,7 +68,17 @@ final class TimeKeeper extends Unit {
 		Unit nextPlan = line.plan; line.plan = null;
 		log.debug("keep: exit");
 		return nextPlan;
-	} catch (Throwable th) { log.fault("Critical fail of Time Keeper. ", th); return this;
+	} catch (ConveyorException ex) {
+/* Возможна ситуация, что Father вошёл в активный режим завершения конвейеров и не даёт
+ * разбудить задачу по таймеру. При этом Father ещё не успел подать команду завершения
+ * работы для текущего конвейера. Вместо ошибки просто выведем уведомление и продолжим
+ * штатное ожидание, когда конвейер потребует отдать удерживаемую линию. */
+		log.hint( "Conveyor is already in the destroy phase,"
+				+ " causing Time Keeper can't to wakeup a Plan" );
+		Unit result = line.plan;
+		if (result != null) line.plan = null; else result = this;
+		return result;
+	} catch (Throwable th) { log.fault("Critical fail of Time Keeper", th); return this;
 	} finally { unsync(); } }
 
 	@Override protected int error(Exception error, boolean nested) {

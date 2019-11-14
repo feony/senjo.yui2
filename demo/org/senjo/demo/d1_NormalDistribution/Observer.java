@@ -10,6 +10,7 @@ package org.senjo.demo.d1_NormalDistribution;
 import static org.senjo.demo.d1_NormalDistribution.Starter.UNIT_COUNT;
 import org.senjo.annotation.Synchronized;
 import org.senjo.conveyor.Conveyor;
+import org.senjo.conveyor.ConveyorView;
 
 /** Наблюдатель запускается в отдельном конвейере, чтобы не испытывать перегрузку
  * основного конвейера. Он принимает данные от всех задач и строит по ним статистику,
@@ -31,25 +32,51 @@ class Observer extends org.senjo.conveyor.SoloTask<Unit> {
 		int count = ++finishedUnitCount;
 		finishedUnit[count-1] = target();
 //XXX Реализовать и испытать команду return $Overview. Она должна добавить вхождение в начало
-		if (count == UNIT_COUNT) call($Overview);
+		switch (count) {
+		case     1       : call($Zeroview); break;
+		case UNIT_COUNT/2: call($Halfview); break;
+		case UNIT_COUNT  : call($Overview); break; }
 		return $Default$; }
 
 	case $Timer: {
 		int count = finishedUnitCount;
 		if (count == 0) return $Default$;
 		// Вывести сообщение с количеством завершённых задач в журнал
-		log().infoEx("Статус: ").form(count, "завершен[а|о] [@] задач[а|и|]").end('.');
+		log().infoEx("Вещание: ").form(count, "завершен[а|о] [@] задач[а|и|]").end('.');
 		return count != UNIT_COUNT ? $Default$ : $Cancel$; }
 
-	case $Overview:
+	case $Zeroview: {
+		float fact   = (System.nanoTime() - Starter.StartEpoch) / 1_000_000_000f;
+		float expect = Unit.WAIT_MIN * Starter.LOOP_COUNT / 1_000f;
+		log().infoEx("Первая задача завершила работу за ")
+				.format("%.1f", fact).add(" сек.\n\tТеоретически ядро и таймеры забрали ")
+				.format("%.1f", fact-expect).end(" сек.");
+		return $Default$; }
+
+	case $Halfview: {
+		float fact   = (System.nanoTime() - Starter.StartEpoch) / 1_000_000_000f;
+		float expect = ((Unit.WAIT_MAX - Unit.WAIT_MIN) / 2f + Unit.WAIT_MIN)
+				* Starter.LOOP_COUNT / 1_000f;
+		log().infoEx("Половина задач завершили работу за ")
+				.format("%.1f", fact).add(" сек.\n\tТеоретически ядро и таймеры забрали ")
+				.format("%.1f", fact-expect).end(" сек.");
+		return $Default$; }
+
+	case $Overview: {
+		float fact   = (System.nanoTime() - Starter.StartEpoch) / 1_000_000_000f;
+		float expect = Unit.WAIT_MAX * Starter.LOOP_COUNT / 1_000f;
 		// Сформулировать и вывести статистику. Далее заснуть на пару секунд чтобы поймать ошибки.
-		log().info("Все задачи завершили работу. Тестовое ожидание 3 секунды...");
+		log().infoEx("Все задачи завершили работу за ")
+				.format("%.1f", fact).add(" сек.\n\tТеоретически ядро и таймеры забрали ")
+				.format("%.1f", fact-expect).end(" сек.");
+		log().info("Тестовое ожидание 3 секунды...");
 		delay(3*Second, $Closing);
-		return $Default$;
+		return $Default$; }
 
 	case $Closing:
-		Starter.view.print();
 		log().info("Тест окончен! Команда завершения работы конвейера...");
+		ConveyorView.legend(true);
+		Starter.view.print();
 		Conveyor.shutdownAll();
 		return $Finish$;
 
@@ -69,8 +96,10 @@ class Observer extends org.senjo.conveyor.SoloTask<Unit> {
 //		semaphore.unsync(code2);
 //	}
 
-	private static final int $Overview = 1;
-	private static final int $Closing  = 2;
+	private static final int $Zeroview = 1;
+	private static final int $Halfview = 2;
+	private static final int $Overview = 3;
+	private static final int $Closing  = 4;
 }
 
 
@@ -81,7 +110,7 @@ class StatusStart implements IStatus {
 	final long time ;
 	final int  count;
 	StatusStart(long time, int count) { this.time = time; this.count = count; }
-
+ 
 	@Override public Type type() { return Type.Start; }
 }
 

@@ -344,16 +344,27 @@ import org.senjo.support.Log.Buffer;
 
 	/** Добавляет вхождение в цепочку задачи на обработку. Также если вхождений не было
 	 * и задача спит, то возвращает задачу в конвейер на исполнение.
-	 * @param entry — вхождение, которое следует добавить в цепочку задачи на обработку. */
-	@Synchronized final void appendEntryAndQueue(@NotNull Entry entry) {
+	 * @param entry — вхождение, которое следует добавить в цепочку задачи на обработку;
+	 * @return признак, что задачу нужно заново положить в очередь конвейера; гарантирует,
+	 *         что этой задачи в данный момент точно нет в очереди конвейера. */
+	@Synchronized final boolean appendEntryAndCheckQueue(@NotNull Entry entry) {
 		try { syncª(); 
 			boolean processing = entryHead != null;
-			if (!processing && existª(Finished)) return;
+			if (!processing && existª(Finished)) return false;
 			appendEntry(entry);
 			// Если вхождения уже были или был флаг Queued, то просто выходим
-			if (processing || !pushª(Queued)) return;
+			if (processing || !pushª(Queued)) return false;
 		} finally { unsyncª(); }
-		conveyor.push(this); // Добавить если вхождений не было и флаг Queued удалось занять
+		return true; // Добавить задачу если вхождений не было и флаг Queued удалось занять
+	}
+
+	/** Добавляет вхождение в цепочку задачи на обработку. Также если вхождений не было
+	 * и задача спит, то возвращает задачу в конвейер на исполнение.
+	 * @param entry — вхождение, которое следует добавить в цепочку задачи на обработку;
+	 * @return признак, что задачу нужно положить в очередь конвейера. */
+	@Synchronized final void appendEntryAndPushQueue(@NotNull Entry entry) {
+		// Добавить задачу в конвейер если метод добавления вхождения требует этого
+		if (appendEntryAndCheckQueue(entry)) conveyor.push(this);
 	}
 
 	/** Переключить текущее (верхнее) вхождение.
@@ -377,15 +388,16 @@ import org.senjo.support.Log.Buffer;
 	}
 
 	/** Переносит системное вхождение из цепочки системных вхождений в начало (голову)
-	 * основной цепочки для немедленной обработки линией конвейера. */
-	@Synchronized final void importEntryAndQueue(Entry entry, int takeMask) {
+	 * основной цепочки для немедленной обработки линией конвейера.
+	 * @return возвращает задачу, если её нет в очереди конвейера и нужно туда положить. */ 
+	@Synchronized final @Nullable Unit importEntryAndQueue(Entry entry, int takeMask) {
 		try { syncª();
 			removeSystem(entry);
 			prepandEntry(entry);
 			takeª(takeMask);
-			if (!pushª(Queued)) return;
+			if (!pushª(Queued)) return null;
 		} finally { unsyncª(); }
-		conveyor.push(this);
+		return this;
 	}
 
 	/** Переносит системное вхождение из головы цепочки вхождений обратно в область цепочки

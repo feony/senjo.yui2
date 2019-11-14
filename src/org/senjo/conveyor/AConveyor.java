@@ -44,7 +44,7 @@ public abstract class AConveyor extends ABasketSync {
 
 	String kindEx() {
 		return (this  instanceof MultiConveyor ? "Multi" : "")
-		     + (queue instanceof PoorQueue     ? "Cycle «" : "Conveyor «"); }
+		     + (queue instanceof PoorQueue     ? "SoloTask «" : "Conveyor «"); }
 
 
 
@@ -104,6 +104,19 @@ public abstract class AConveyor extends ABasketSync {
 		if (exist(Load)) queue.add(plan); else wakeup(plan);
 	} finally { unsync(); } }
 
+	/** Добавить указанное множество задач в конвейер на исполнение. Если все исполнительные
+	 * линии заняты, то задача будет добавлена в очередь и выполнена позже.
+	 * @param array — массив содержащий задачи для добавления в очередь конвейера;
+	 * @param count — число элементов массива начиная с нулевого, которые нужно обслужить. */
+	@Synchronized void push(Unit[] array, int count) { try { sync();
+		Log.Buffer buffer = log.isDebug() ? log.debugEx("Push set [") : null;
+		for (int index = 0; index != count; ++index) {
+			Unit unit = array[index];
+			if (buffer != null) buffer.div(',', ' ').hashName(unit);
+			if (exist(Load)) queue.add(unit); else wakeup(unit); }
+		if (buffer != null) buffer.add("], size=").add(count).end();
+	} finally { unsync(); } }
+
 
 	/** Обменивает текущий plan со следующим, который нужно обработать. Если текущий plan
 	 * не нужно возвращать в очередь, то нужно передать null. Если передан plan и очередь
@@ -138,7 +151,7 @@ public abstract class AConveyor extends ABasketSync {
 
 	final void assertShutdown() {
 		if (empty(Finished)) father.unready();
-		else throw ConveyorException.FailedWakeupBecauseShutdown(); }
+		else throw ConveyorException.FailedWakeupBecauseShutdowned(); }
 
 
 

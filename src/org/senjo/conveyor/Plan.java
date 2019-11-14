@@ -43,11 +43,11 @@ import org.senjo.conveyor.Entry.*;
  */
 
 	@Synchronized protected final void start() {
-		appendEntryAndQueue(new Entry.Call($Start)); }
+		appendEntryAndPushQueue(new Entry.Call($Start)); }
 
 	/** Разово обработать указанный этап задачи. */
 	@Synchronized protected final void call(int stage) {
-		appendEntryAndQueue(new Entry.Call(stage)); }
+		appendEntryAndPushQueue(new Entry.Call(stage)); }
 
 	@Synchronized protected final void loop  () { getExtension().looper.loop(); }
 
@@ -104,7 +104,7 @@ import org.senjo.conveyor.Entry.*;
 		conveyor.log.trace("Task: Поступил сигнал по квитку " + text(ticket));
 		Target target = ticket.take();
 		if (target != null || ticket.status().isSuccess)
-			appendEntryAndQueue(new Signal<>(target, $Signal));
+			appendEntryAndPushQueue(new Signal<>(target, $Signal));
 /*FIXME Из-за этого падает механизм сигналов, это должен быть стабильный метод,
  * а не швыряться ошибками! */
 		else throw new IllegalStateException( "Пока не умею обрабатывать ошибки по сигналу",
@@ -113,7 +113,7 @@ import org.senjo.conveyor.Entry.*;
 	protected final void handle(Target target, int stage) {
 		conveyor.log.trace( "Task: Сигнал задаче " + text(this) + " для обработки "
 				+ text(target) );
-		appendEntryAndQueue(new Entry.Signal<>(target, stage)); }
+		appendEntryAndPushQueue(new Entry.Signal<>(target, stage)); }
 
 	/** Возвращает текущую обрабатываемую цель, по которой пришёл сигнал.
 	 * Метод может вызываться только из потока обработки задачи. */
